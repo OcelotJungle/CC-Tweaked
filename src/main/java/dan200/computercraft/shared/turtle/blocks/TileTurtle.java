@@ -23,12 +23,15 @@ import dan200.computercraft.shared.turtle.apis.TurtleAPI;
 import dan200.computercraft.shared.turtle.core.TurtleBrain;
 import dan200.computercraft.shared.turtle.inventory.ContainerTurtle;
 import dan200.computercraft.shared.util.*;
+import net.minecraft.Util;
+import net.minecraft.client.Minecraft;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.core.NonNullList;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.ListTag;
 import net.minecraft.nbt.Tag;
+import net.minecraft.network.chat.TextComponent;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResult;
@@ -44,7 +47,9 @@ import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.BlockHitResult;
 import net.minecraft.world.phys.Vec3;
 import net.minecraftforge.common.capabilities.Capability;
+import net.minecraftforge.common.capabilities.ICapabilityProvider;
 import net.minecraftforge.common.util.LazyOptional;
+import net.minecraftforge.energy.IEnergyStorage;
 import net.minecraftforge.items.IItemHandlerModifiable;
 import net.minecraftforge.items.wrapper.InvWrapper;
 
@@ -54,9 +59,71 @@ import java.util.Collections;
 
 import static dan200.computercraft.shared.Capabilities.CAPABILITY_PERIPHERAL;
 import static net.minecraftforge.items.CapabilityItemHandler.ITEM_HANDLER_CAPABILITY;
+import static net.minecraftforge.energy.CapabilityEnergy.ENERGY;
 
-public class TileTurtle extends TileComputerBase implements ITurtleTile, DefaultInventory
+public class TileTurtle extends TileComputerBase implements ITurtleTile, DefaultInventory, IEnergyStorage
 {
+    public void testMsg( String msg )
+    {
+        return;
+//        System.out.println(msg);
+//        try { Minecraft.getInstance().player.sendMessage( new TextComponent( msg ), Util.NIL_UUID ); }
+//        catch(Exception ex) {}
+    }
+
+    protected int energy = 0;
+    protected int capacity = 10_000;
+
+    @Override
+    public int receiveEnergy( int maxReceive, boolean simulate )
+    {
+        int received = capacity - energy;
+        testMsg( "Receive " + received );
+        if( !simulate ) energy += received;
+        return received;
+    }
+
+    @Override
+    public int extractEnergy( int maxExtract, boolean simulate )
+    {
+        int extracted = energy;
+        testMsg( "Extract " + extracted );
+        if( !simulate ) energy -= extracted;
+        return extracted;
+    }
+
+    @Override
+    public int getEnergyStored()
+    {
+        testMsg( "Get energy stored " + energy );
+        return energy;
+    }
+
+    public void setEnergyStored( int quantity )
+    {
+        testMsg( "Set energy stored " + quantity );
+        energy = Math.min( quantity, capacity );
+    }
+
+    @Override
+    public int getMaxEnergyStored()
+    {
+        testMsg( "Get max energy stored " + capacity );
+        return capacity;
+    }
+
+    @Override
+    public boolean canExtract()
+    {
+        return true;
+    }
+
+    @Override
+    public boolean canReceive()
+    {
+        return true;
+    }
+
     public static final int INVENTORY_SIZE = 16;
     public static final int INVENTORY_WIDTH = 4;
     public static final int INVENTORY_HEIGHT = 4;
@@ -76,6 +143,7 @@ public class TileTurtle extends TileComputerBase implements ITurtleTile, Default
     private TurtleBrain brain = new TurtleBrain( this );
     private MoveState moveState = MoveState.NOT_MOVED;
     private LazyOptional<IPeripheral> peripheral;
+    private LazyOptional<IEnergyStorage> energyStorage;
 
     public TileTurtle( BlockEntityType<? extends TileGeneric> type, BlockPos pos, BlockState state, ComputerFamily family )
     {
@@ -544,6 +612,7 @@ public class TileTurtle extends TileComputerBase implements ITurtleTile, Default
         Collections.copy( inventory, copy.inventory );
         Collections.copy( previousInventory, copy.previousInventory );
         inventoryChanged = copy.inventoryChanged;
+        energy = copy.energy;
         brain = copy.brain;
         brain.setOwner( this );
 
@@ -575,6 +644,12 @@ public class TileTurtle extends TileComputerBase implements ITurtleTile, Default
                 peripheral = LazyOptional.of( () -> new ComputerPeripheral( "turtle", createProxy() ) );
             }
             return peripheral.cast();
+        }
+
+        if( cap == ENERGY )
+        {
+            energyStorage = LazyOptional.of( () -> this );
+            return energyStorage.cast();
         }
 
         return super.getCapability( cap, side );

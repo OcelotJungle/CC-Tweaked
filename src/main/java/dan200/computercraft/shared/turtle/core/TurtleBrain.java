@@ -83,7 +83,6 @@ public class TurtleBrain implements ITurtleAccess
     private final Map<TurtleSide, CompoundTag> upgradeNBTData = new EnumMap<>( TurtleSide.class );
 
     private int selectedSlot = 0;
-    private int fuelLevel = 0;
     private int colourHex = -1;
     private ResourceLocation overlay = null;
 
@@ -158,8 +157,8 @@ public class TurtleBrain implements ITurtleAccess
     private void readCommon( CompoundTag nbt )
     {
         // Read fields
+        owner.setEnergyStored(nbt.contains( NBT_FUEL ) ? nbt.getInt( NBT_FUEL ) : 0);
         colourHex = nbt.contains( NBT_COLOUR ) ? nbt.getInt( NBT_COLOUR ) : -1;
-        fuelLevel = nbt.contains( NBT_FUEL ) ? nbt.getInt( NBT_FUEL ) : 0;
         overlay = nbt.contains( NBT_OVERLAY ) ? new ResourceLocation( nbt.getString( NBT_OVERLAY ) ) : null;
 
         // Read upgrades
@@ -180,7 +179,7 @@ public class TurtleBrain implements ITurtleAccess
 
     private void writeCommon( CompoundTag nbt )
     {
-        nbt.putInt( NBT_FUEL, fuelLevel );
+        nbt.putInt( NBT_FUEL, owner.getEnergyStored() );
         if( colourHex != -1 ) nbt.putInt( NBT_COLOUR, colourHex );
         if( overlay != null ) nbt.putString( NBT_OVERLAY, overlay.toString() );
 
@@ -458,27 +457,20 @@ public class TurtleBrain implements ITurtleAccess
     @Override
     public int getFuelLevel()
     {
-        return Math.min( fuelLevel, getFuelLimit() );
+        return Math.min( owner.getEnergyStored(), getFuelLimit() );
     }
 
     @Override
     public void setFuelLevel( int level )
     {
-        fuelLevel = Math.min( level, getFuelLimit() );
+        owner.setEnergyStored(Math.min( level, getFuelLimit() ));
         owner.onTileEntityChange();
     }
 
     @Override
     public int getFuelLimit()
     {
-        if( owner.getFamily() == ComputerFamily.ADVANCED )
-        {
-            return ComputerCraft.advancedTurtleFuelLimit;
-        }
-        else
-        {
-            return ComputerCraft.turtleFuelLimit;
-        }
+         return owner.getMaxEnergyStored();
     }
 
     @Override
@@ -489,9 +481,10 @@ public class TurtleBrain implements ITurtleAccess
         if( !isFuelNeeded() ) return true;
 
         int consumption = Math.max( fuel, 0 );
-        if( getFuelLevel() >= consumption )
+        int remainder = getFuelLevel() - consumption;
+        if( remainder >= 0 )
         {
-            setFuelLevel( getFuelLevel() - consumption );
+            setFuelLevel( remainder );
             return true;
         }
         return false;
